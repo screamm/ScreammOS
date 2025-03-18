@@ -13,7 +13,8 @@ pub static COMMAND_BUFFER: Mutex<CommandBuffer> = Mutex::new(CommandBuffer::new(
 
 // Initialize keyboard handling
 pub fn init() {
-    // Any initialization code can go here
+    // Display the command prompt
+    print!(">");
 }
 
 // Handle a scancode from the keyboard controller
@@ -30,7 +31,7 @@ pub fn handle_scancode(scancode: u8) {
                             // Handle enter key
                             println!();
                             
-                            // Process the command (will be implemented later)
+                            // Process the command
                             let command = command_buffer.get_command();
                             if !command.is_empty() {
                                 process_command(command);
@@ -52,10 +53,9 @@ pub fn handle_scancode(scancode: u8) {
                         }
                     }
                 },
-                DecodedKey::RawKey(key) => {
+                DecodedKey::RawKey(_key) => {
                     // Handle special keys like F1, F2, etc.
-                    // For now, we just print the key
-                    println!("{:?}", key);
+                    // We can add more specific handling for special keys later
                 }
             }
         }
@@ -67,14 +67,16 @@ fn process_command(command: &str) {
     match command {
         "help" => {
             println!("Available commands:");
-            println!("  help    - Show this help");
-            println!("  clear   - Clear the screen");
-            println!("  version - Show ScreammOS version");
-            println!("  theme   - Change the theme");
+            println!("  help      - Show this help");
+            println!("  clear     - Clear the screen");
+            println!("  version   - Show ScreammOS version");
+            println!("  theme     - Change the theme");
+            println!("  sysinfo   - Display system information");
+            println!("  memory    - Show memory usage");
+            println!("  about     - About ScreammOS");
+            println!("  reboot    - Restart the system");
         },
         "clear" => {
-            // Use the VGA buffer to clear the screen
-            // This will be implemented later
             crate::vga_buffer::WRITER.lock().clear_screen();
             println!("Screen cleared");
         },
@@ -89,6 +91,52 @@ fn process_command(command: &str) {
             println!("  modern  - Modern dark");
             println!("");
             println!("Use 'theme [name]' to change theme");
+        },
+        "sysinfo" => {
+            println!("ScreammOS System Information");
+            println!("---------------------------");
+            println!("Version: 0.1.0 (Prototype)");
+            println!("CPU: x86_64");
+            
+            // Display some system info - simplified version without CPUID
+            println!("Architecture: x86_64");
+            println!("Features: Keyboard, Text Mode");
+            println!("Heap Size: {} KiB", crate::memory::HEAP_SIZE / 1024);
+        },
+        "memory" => {
+            let stats = crate::memory::get_memory_stats();
+            println!("Memory Information");
+            println!("-----------------");
+            println!("Total:  {} bytes", stats.total);
+            println!("Used:   {} bytes", stats.used);
+            println!("Free:   {} bytes", stats.free);
+            println!("");
+            println!("Total:  {} KiB", stats.total / 1024);
+            println!("Used:   {} KiB", stats.used / 1024);
+            println!("Free:   {} KiB", stats.free / 1024);
+        },
+        "about" => {
+            println!("ScreammOS - The Retro-modern Experience");
+            println!("--------------------------------------");
+            println!("A retro-modern operating system with DOS feel,");
+            println!("built from scratch in Rust.");
+            println!("");
+            println!("Features:");
+            println!("- Text-based VGA buffer with 16-color palette");
+            println!("- DOS-inspired interface design");
+            println!("- Window management with overlapping windows");
+            println!("- Various visual themes (DOS classic, Amber, Green CRT)");
+            println!("");
+            println!("Copyright (c) 2023 ScreammOS Team");
+        },
+        "reboot" => {
+            println!("Rebooting system...");
+            // Use the 8042 PS/2 controller to trigger a system reset
+            use x86_64::instructions::port::Port;
+            unsafe {
+                let mut port = Port::new(0x64);
+                port.write(0xFE as u8);
+            }
         },
         _ if command.starts_with("theme ") => {
             let theme_name = command.trim_start_matches("theme ").trim();
