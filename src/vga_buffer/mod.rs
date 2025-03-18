@@ -3,7 +3,7 @@ use lazy_static::lazy_static;
 use spin::Mutex;
 use volatile::Volatile;
 
-// Standardfärger för VGA-text
+// Standard colors for VGA text
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -26,7 +26,7 @@ pub enum Color {
     White = 15,
 }
 
-// ColorCode representerar färgattribut för VGA-text (förgrund/bakgrund)
+// ColorCode represents color attributes for VGA text (foreground/background)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 struct ColorCode(u8);
@@ -37,7 +37,7 @@ impl ColorCode {
     }
 }
 
-// Ett tecken på skärmen med färgattribut
+// A character on the screen with color attributes
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 struct ScreenChar {
@@ -45,7 +45,7 @@ struct ScreenChar {
     color_code: ColorCode,
 }
 
-// Storleken på VGA-textbufferten
+// The size of the VGA text buffer
 const BUFFER_HEIGHT: usize = 25;
 const BUFFER_WIDTH: usize = 80;
 
@@ -207,10 +207,10 @@ pub fn change_theme(theme_style: ThemeStyle) {
     }
 }
 
-// Enkla temastilar för att komma igång
+// Simple theme styles to get started
 pub enum ThemeStyle {
-    DOSClassic,     // Klassisk DOS-stil (blå bakgrund, ljusgrå text)
-    AmberTerminal,  // Amber terminal (gul/brun text på svart)
-    GreenCRT,       // Grön CRT terminal (grön text på svart)
-    Modern,         // Modern tolkning (vit text på mörkgrå)
+    DOSClassic,     // Classic DOS style (blue background, light gray text)
+    AmberTerminal,  // Amber terminal (yellow/brown text on black)
+    GreenCRT,       // Green CRT terminal (green text on black)
+    Modern,         // Modern interpretation (white text on dark gray)
 } 

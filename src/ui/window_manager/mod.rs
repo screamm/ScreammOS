@@ -1,10 +1,10 @@
-//! Fönsterhanteringssystem för ScreammOS
-//! Inspirerat av tidiga DOS-fönsterhanteringssystem
+//! Window management system for ScreammOS
+//! Inspired by early DOS window management systems
 
 use crate::vga_buffer::WRITER;
 use crate::ui::{BorderStyle, Rect, Theme};
 
-/// Representerar ett fönster i gränssnittet
+/// Represents a window in the interface
 pub struct Window {
     title: &'static str,
     bounds: Rect,
@@ -15,31 +15,31 @@ pub struct Window {
 }
 
 impl Window {
-    /// Skapa ett nytt fönster
+    /// Create a new window
     pub fn new(title: &'static str, x: usize, y: usize, width: usize, height: usize, theme: Theme) -> Self {
         Self {
             title,
             bounds: Rect { x, y, width, height },
             is_active: false,
             is_visible: true,
-            style: BorderStyle::Double, // Standard DOS-stil
+            style: BorderStyle::Double, // Standard DOS style
             theme,
         }
     }
     
-    /// Visa fönstret
+    /// Show the window
     pub fn show(&mut self) {
         self.is_visible = true;
         self.render();
     }
     
-    /// Dölj fönstret
+    /// Hide the window
     pub fn hide(&mut self) {
         self.is_visible = false;
-        // Här skulle vi idealt rensa området och rita om underliggande fönster
+        // Ideally we would clear the area and redraw underlying windows here
     }
     
-    /// Ändra fönstrets position
+    /// Change window position
     pub fn move_to(&mut self, x: usize, y: usize) {
         self.bounds.x = x;
         self.bounds.y = y;
@@ -48,7 +48,7 @@ impl Window {
         }
     }
     
-    /// Ändra fönstrets storlek
+    /// Change window size
     pub fn resize(&mut self, width: usize, height: usize) {
         self.bounds.width = width;
         self.bounds.height = height;
@@ -57,43 +57,43 @@ impl Window {
         }
     }
     
-    /// Rita fönstret
+    /// Draw the window
     pub fn render(&self) {
         if !self.is_visible {
             return;
         }
         
-        // Rita fönsterramen
+        // Draw window frame
         let mut writer = WRITER.lock();
         
-        // Sätt färger baserat på om fönstret är aktivt
+        // Set colors based on whether the window is active
         let border_color = if self.is_active {
             self.theme.highlight_color 
         } else {
             self.theme.border_color
         };
         
-        // Framtida implementation: Rita skuggor om de är aktiverade
+        // Future implementation: Draw shadows if enabled
         // if self.theme.shadow_enabled { ... }
         
-        // Rita ramen
+        // Draw the frame
         let (top_left, top_right, bottom_left, bottom_right, horizontal, vertical) = match self.style {
             BorderStyle::Single => (0xDA, 0xBF, 0xC0, 0xD9, 0xC4, 0xB3),
             BorderStyle::Double => (0xC9, 0xBB, 0xC8, 0xBC, 0xCD, 0xBA),
             BorderStyle::SingleHeavy => (0xD5, 0xB8, 0xD4, 0xBE, 0xCD, 0xB3),
         };
         
-        // Rita övre ramen
+        // Draw upper frame
         writer.set_color(border_color, self.theme.window_bg);
         
-        // Toppen
+        // Top
         for i in self.bounds.x..self.bounds.x+self.bounds.width {
             writer.column_position = i;
             writer.row_position = self.bounds.y;
             writer.write_byte(if i == self.bounds.x { top_left } else if i == self.bounds.x+self.bounds.width-1 { top_right } else { horizontal });
         }
         
-        // Titel
+        // Title
         writer.column_position = self.bounds.x + 2;
         writer.row_position = self.bounds.y;
         writer.write_byte(b' ');
@@ -104,27 +104,27 @@ impl Window {
         writer.set_color(border_color, self.theme.window_bg);
         writer.write_byte(b' ');
         
-        // Sidorna
+        // Sides
         for y in self.bounds.y+1..self.bounds.y+self.bounds.height-1 {
-            // Vänster kant
+            // Left edge
             writer.column_position = self.bounds.x;
             writer.row_position = y;
             writer.write_byte(vertical);
             
-            // Fyll insidan
+            // Fill inside
             writer.set_color(self.theme.window_fg, self.theme.window_bg);
             for x in self.bounds.x+1..self.bounds.x+self.bounds.width-1 {
                 writer.column_position = x;
                 writer.write_byte(b' ');
             }
             
-            // Höger kant
+            // Right edge
             writer.set_color(border_color, self.theme.window_bg);
             writer.column_position = self.bounds.x + self.bounds.width - 1;
             writer.write_byte(vertical);
         }
         
-        // Botten
+        // Bottom
         writer.set_color(border_color, self.theme.window_bg);
         for i in self.bounds.x..self.bounds.x+self.bounds.width {
             writer.column_position = i;
@@ -133,7 +133,7 @@ impl Window {
         }
     }
     
-    /// Skriv text i fönstret på en given position
+    /// Write text in the window at a given position
     pub fn write_at(&self, x: usize, y: usize, text: &str) {
         if !self.is_visible || 
            x >= self.bounds.width - 2 || 
@@ -156,15 +156,15 @@ impl Window {
     }
 }
 
-/// Hanterar och organiserar alla fönster
+/// Manages and organizes all windows
 pub struct WindowManager {
-    windows: [Option<Window>; 10], // Max 10 fönster för enkel implementation
+    windows: [Option<Window>; 10], // Max 10 windows for simple implementation
     active_window: Option<usize>,
     next_window_slot: usize,
 }
 
 impl WindowManager {
-    /// Skapa en ny fönsterhanterare
+    /// Create a new window manager
     pub fn new() -> Self {
         Self {
             windows: [None, None, None, None, None, None, None, None, None, None],
@@ -173,17 +173,17 @@ impl WindowManager {
         }
     }
     
-    /// Lägg till ett nytt fönster
+    /// Add a new window
     pub fn add_window(&mut self, window: Window) -> Option<usize> {
         if self.next_window_slot >= self.windows.len() {
-            return None; // Ingen plats för fler fönster
+            return None; // No space for more windows
         }
         
         let window_id = self.next_window_slot;
         self.windows[window_id] = Some(window);
         self.next_window_slot += 1;
         
-        // Aktivera fönstret om det är det första
+        // Activate the window if it's the first one
         if self.active_window.is_none() {
             self.active_window = Some(window_id);
             if let Some(window) = &mut self.windows[window_id] {
@@ -191,7 +191,7 @@ impl WindowManager {
             }
         }
         
-        // Rendera fönstret
+        // Render the window
         if let Some(window) = &self.windows[window_id] {
             window.render();
         }
@@ -199,13 +199,13 @@ impl WindowManager {
         Some(window_id)
     }
     
-    /// Aktivera ett fönster
+    /// Activate a window
     pub fn activate_window(&mut self, window_id: usize) -> bool {
         if window_id >= self.windows.len() || self.windows[window_id].is_none() {
             return false;
         }
         
-        // Inaktivera det nuvarande aktiva fönstret
+        // Deactivate the current active window
         if let Some(active_id) = self.active_window {
             if let Some(window) = &mut self.windows[active_id] {
                 window.is_active = false;
@@ -213,7 +213,7 @@ impl WindowManager {
             }
         }
         
-        // Aktivera det nya fönstret
+        // Activate the new window
         if let Some(window) = &mut self.windows[window_id] {
             window.is_active = true;
             window.render();
@@ -224,20 +224,20 @@ impl WindowManager {
         false
     }
     
-    /// Rendera alla synliga fönster
+    /// Render all visible windows
     pub fn render_all(&self) {
-        // Rendera fönster nerifrån och upp för korrekt z-ordning
+        // Render windows from bottom to top for correct z-ordering
         for window in self.windows.iter().flatten() {
             window.render();
         }
     }
     
-    /// Visa ett meddelande i ett nytt fönster
+    /// Show a message in a new window
     pub fn show_message(&mut self, title: &'static str, message: &'static str, theme: Theme) -> Option<usize> {
         let width = message.len() + 6;
         let height = 5;
         
-        // Centrera i mitten av skärmen
+        // Center in the middle of the screen
         let x = (80 - width) / 2;
         let y = (25 - height) / 2;
         
@@ -253,10 +253,10 @@ impl WindowManager {
         Some(window_id)
     }
     
-    /// Visa en enkel dialogruta med knappar
+    /// Show a simple dialog with buttons
     pub fn show_dialog(&mut self, title: &'static str, message: &'static str, 
                       _buttons: &[&'static str], theme: Theme) -> Option<usize> {
-        // Implementera senare: Dialogruta med knappar
+        // Implement later: Dialog with buttons
         self.show_message(title, message, theme)
     }
 } 

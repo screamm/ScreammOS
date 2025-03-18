@@ -1,30 +1,30 @@
-#![no_std] // Använder inte Rust standardbibliotek
-#![no_main] // Använder inte vanlig main-funktion
+#![no_std] // Don't use Rust standard library
+#![no_main] // Don't use regular main function
 
 use core::panic::PanicInfo;
 
-// Den här importeras från bootloader-crate
+// This is imported from the bootloader crate
 use bootloader::{BootInfo, entry_point};
 
-// Importera VGA-buffertfunktionalitet
+// Import VGA buffer functionality
 mod vga_buffer;
 
-// Importera UI-moduler
+// Import UI modules
 mod ui;
 
-// Importera nödvändiga komponenter
+// Import necessary components
 use vga_buffer::{change_theme, ThemeStyle};
 use ui::{Theme, window_manager::WindowManager};
 
-// Definiera OS-entry point för bootloader
+// Define OS entry point for bootloader
 entry_point!(kernel_main);
 
-/// Huvud OS-funktion som anropas av bootloader
+/// Main OS function called by bootloader
 fn kernel_main(_boot_info: &'static BootInfo) -> ! {
-    // Rensa skärmen med DOS-blå tema
+    // Clear screen with DOS blue theme
     change_theme(ThemeStyle::DOSClassic);
     
-    // Visa en stilig ASCII-konst ScreammOS-logotyp
+    // Display a stylish ASCII art ScreammOS logo
     println!("");
     println!("                                         _____ _____ ");
     println!("                                        / ____/ ____|");
@@ -33,34 +33,34 @@ fn kernel_main(_boot_info: &'static BootInfo) -> ! {
     println!(" \\__ \\ (__| | |  __/ (_| | | | | | |   ____) |___) |");
     println!(" |___/\\___|_|  \\___|\\__,_|_| |_| |_|  |_____/_____/ ");
     println!("");
-    println!(" Välkommen till ScreammOS - Den Retro-moderna Upplevelsen");
-    println!(" Version 0.1.0 - Prototyp");
+    println!(" Welcome to ScreammOS - The Retro-modern Experience");
+    println!(" Version 0.1.0 - Prototype");
     println!("");
-    println!(" ScreammOS startar upp...");
+    println!(" ScreammOS starting up...");
     
-    // Skapa fönsterhanteraren och visa ett välkomstfönster
+    // Create window manager and show a welcome window
     let mut window_manager = WindowManager::new();
     
-    // Skapa DOS-klassiskt tema
+    // Create DOS classic theme
     let dos_theme = ui::Theme::dos_classic();
     
-    // Visa välkomstfönstret
+    // Show welcome window
     window_manager.show_message(
-        "Välkommen", 
-        "ScreammOS 0.1.0 - Tryck F1 för hjälp", 
+        "Welcome", 
+        "ScreammOS 0.1.0 - Press F1 for help", 
         dos_theme
     );
     
-    // Huvudloop
+    // Main loop
     loop {
-        // Här kommer senare kod för tangentbordshantering och kommandon
+        // Here will be code for keyboard handling and commands later
     }
 }
 
-/// Denna funktion anropas vid panik
+/// This function is called on panic
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    // Byt till röd skärm vid panik
+    // Switch to red screen on panic
     vga_buffer::WRITER.lock().set_color(vga_buffer::Color::White, vga_buffer::Color::Red);
     println!("KERNEL PANIC: {}", info);
     loop {}

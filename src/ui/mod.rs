@@ -1,19 +1,19 @@
-//! Användargränssnittsmodul för ScreammOS
+//! User interface module for ScreammOS
 
 pub mod window_manager;
 
 use crate::vga_buffer::{Color, WRITER};
 
-/// Olika UI-teman för ScreammOS
+/// Different UI themes for ScreammOS
 pub enum UITheme {
-    DOSClassic,     // Klassisk DOS-stil - blå bakgrund, vit text
-    AmberTerminal,  // Amber terminal - gul/brun text på svart bakgrund
-    GreenCRT,       // Grön CRT-terminal - grön text på svart bakgrund
-    ModernRetro,    // Modern retrostil med 16-färgspalett
-    Custom(Theme),  // Anpassat tema
+    DOSClassic,     // Classic DOS style - blue background, white text
+    AmberTerminal,  // Amber terminal - yellow/brown text on black background
+    GreenCRT,       // Green CRT terminal - green text on black background
+    ModernRetro,    // Modern retro style with 16-color palette
+    Custom(Theme),  // Custom theme
 }
 
-/// Anpassningsbara temainställningar
+/// Customizable theme settings
 pub struct Theme {
     pub window_bg: Color,
     pub window_fg: Color,
@@ -26,7 +26,7 @@ pub struct Theme {
 }
 
 impl Theme {
-    /// Skapa det klassiska DOS-temat
+    /// Create the classic DOS theme
     pub fn dos_classic() -> Self {
         Self {
             window_bg: Color::Blue,
@@ -40,7 +40,7 @@ impl Theme {
         }
     }
     
-    /// Skapa Amber-terminaltemat
+    /// Create the Amber terminal theme
     pub fn amber_terminal() -> Self {
         Self {
             window_bg: Color::Black,
@@ -54,7 +54,7 @@ impl Theme {
         }
     }
     
-    /// Skapa grönt CRT-tema
+    /// Create the green CRT theme
     pub fn green_crt() -> Self {
         Self {
             window_bg: Color::Black,
@@ -69,7 +69,7 @@ impl Theme {
     }
 }
 
-/// En grundläggande rektangel för layout
+/// A basic rectangle for layout
 #[derive(Debug, Clone, Copy)]
 pub struct Rect {
     pub x: usize,
@@ -78,45 +78,45 @@ pub struct Rect {
     pub height: usize,
 }
 
-/// Basklass för alla UI-komponenter
+/// Base class for all UI components
 pub trait Component {
     fn render(&self);
     fn handle_input(&mut self, key: u8) -> bool;
     fn get_bounds(&self) -> Rect;
 }
 
-/// Ramtyper för DOS-stil UI
+/// Border types for DOS-style UI
 pub enum BorderStyle {
     Single,     // ─ │ ┌ ┐ └ ┘
     Double,     // ═ ║ ╔ ╗ ╚ ╝
     SingleHeavy // ━ ┃ ┏ ┓ ┗ ┛
 }
 
-/// Rita en DOS-stil ruta
+/// Draw a DOS-style box
 pub fn draw_box(rect: Rect, style: BorderStyle, title: Option<&str>) {
     let mut writer = WRITER.lock();
     
-    // Tecken för olika ramtyper
+    // Characters for different border types
     let (top_left, top_right, bottom_left, bottom_right, horizontal, vertical) = match style {
         BorderStyle::Single => (0xDA, 0xBF, 0xC0, 0xD9, 0xC4, 0xB3),
         BorderStyle::Double => (0xC9, 0xBB, 0xC8, 0xBC, 0xCD, 0xBA),
         BorderStyle::SingleHeavy => (0xD5, 0xB8, 0xD4, 0xBE, 0xCD, 0xB3),
     };
     
-    // Rita övre ramen
+    // Draw upper frame
     writer.set_color(Color::LightGray, Color::Blue);
     for i in rect.x..rect.x+rect.width {
         writer.write_byte(if i == rect.x { top_left } else if i == rect.x+rect.width-1 { top_right } else { horizontal });
     }
     
-    // Rita titel om det finns
+    // Draw title if present
     if let Some(title) = title {
-        // Positionera för titeln
+        // Position for title
         let title_pos = rect.x + 2;
         writer.column_position = title_pos;
         writer.row_position = rect.y;
         
-        // Rita titeln
+        // Draw the title
         writer.write_byte(b' ');
         for &byte in title.as_bytes() {
             writer.write_byte(byte);
@@ -124,13 +124,13 @@ pub fn draw_box(rect: Rect, style: BorderStyle, title: Option<&str>) {
         writer.write_byte(b' ');
     }
     
-    // Rita sidoramar och fyllning
+    // Draw side frames and filling
     for y in rect.y+1..rect.y+rect.height-1 {
         writer.column_position = rect.x;
         writer.row_position = y;
         writer.write_byte(vertical);
         
-        // Fyll med mellanslag
+        // Fill with spaces
         for _ in rect.x+1..rect.x+rect.width-1 {
             writer.write_byte(b' ');
         }
@@ -138,7 +138,7 @@ pub fn draw_box(rect: Rect, style: BorderStyle, title: Option<&str>) {
         writer.write_byte(vertical);
     }
     
-    // Rita nedre ramen
+    // Draw lower frame
     writer.column_position = rect.x;
     writer.row_position = rect.y + rect.height - 1;
     for i in rect.x..rect.x+rect.width {
