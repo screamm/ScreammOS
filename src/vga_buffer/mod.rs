@@ -49,13 +49,13 @@ struct ScreenChar {
 const BUFFER_HEIGHT: usize = 25;
 const BUFFER_WIDTH: usize = 80;
 
-// VGA-textbuffert med flyktiga läsningar/skrivningar
+// VGA text buffer with volatile reads/writes
 #[repr(transparent)]
 struct Buffer {
     chars: [[Volatile<ScreenChar>; BUFFER_WIDTH]; BUFFER_HEIGHT],
 }
 
-// Writer-struktur för att hantera textutmatning
+// Writer structure to handle text output
 pub struct Writer {
     pub column_position: usize,
     pub row_position: usize,
@@ -87,7 +87,7 @@ impl Writer {
     }
 
     fn new_line(&mut self) {
-        // DOS-stil scrollning
+        // DOS-style scrolling
         if self.row_position >= BUFFER_HEIGHT - 1 {
             for row in 1..BUFFER_HEIGHT {
                 for col in 0..BUFFER_WIDTH {
@@ -115,26 +115,26 @@ impl Writer {
     pub fn write_string(&mut self, s: &str) {
         for byte in s.bytes() {
             match byte {
-                // Skrivbara ASCII-tecken eller radbrytning
+                // Printable ASCII characters or newline
                 0x20..=0x7e | b'\n' => self.write_byte(byte),
-                // Icke i ASCII-området använder ett ersättningstecken (DOS-stil)
+                // Not in ASCII range, use a replacement character (DOS-style)
                 _ => self.write_byte(0xFE),
             }
         }
     }
     
-    // Ställ in textfärg i DOS-stil
+    // Set text color in DOS style
     pub fn set_color(&mut self, foreground: Color, background: Color) {
         self.color_code = ColorCode::new(foreground, background);
     }
     
-    // Aktivera/inaktivera CRT-effekt för retrokänsla
+    // Enable/disable CRT effect for retro feel
     pub fn set_crt_effect(&mut self, enabled: bool) {
         self.crt_effect_enabled = enabled;
-        // Implementering av faktisk CRT-effekt kommer senare
+        // Implementation of actual CRT effect will come later
     }
     
-    // Rensa skärmen (som CLS i DOS)
+    // Clear screen (like CLS in DOS)
     pub fn clear_screen(&mut self) {
         for row in 0..BUFFER_HEIGHT {
             self.clear_row(row);
@@ -151,18 +151,18 @@ impl fmt::Write for Writer {
     }
 }
 
-// Global Writer-instans med Mutex för säker global åtkomst
+// Global Writer instance with Mutex for safe global access
 lazy_static! {
     pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
         column_position: 0,
         row_position: 0,
-        color_code: ColorCode::new(Color::LightGray, Color::Blue), // Klassisk DOS-blå
+        color_code: ColorCode::new(Color::LightGray, Color::Blue), // Classic DOS blue
         buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
         crt_effect_enabled: false,
     });
 }
 
-// Makron för att förenkla utskrift
+// Macros to simplify printing
 #[macro_export]
 macro_rules! print {
     ($($arg:tt)*) => ($crate::vga_buffer::_print(format_args!($($arg)*)));
@@ -179,13 +179,13 @@ pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write;
     use x86_64::instructions::interrupts;
     
-    // Inaktivera avbrott under skrivning för att undvika race conditions
+    // Disable interrupts during writing to avoid race conditions
     interrupts::without_interrupts(|| {
         WRITER.lock().write_fmt(args).unwrap();
     });
 }
 
-// Ändra tema för DOS-känsla
+// Change theme for DOS feel
 pub fn change_theme(theme_style: ThemeStyle) {
     match theme_style {
         ThemeStyle::DOSClassic => {

@@ -1,5 +1,6 @@
 #![no_std] // Don't use Rust standard library
 #![no_main] // Don't use regular main function
+#![feature(abi_x86_interrupt)] // Enable x86-interrupt ABI
 
 use core::panic::PanicInfo;
 
@@ -11,6 +12,12 @@ mod vga_buffer;
 
 // Import UI modules
 mod ui;
+
+// Import interrupt handling
+mod interrupts;
+
+// Import keyboard handling
+mod keyboard;
 
 // Import necessary components
 use vga_buffer::{change_theme, ThemeStyle};
@@ -38,7 +45,13 @@ fn kernel_main(_boot_info: &'static BootInfo) -> ! {
     println!("");
     println!(" ScreammOS starting up...");
     
-    // Create window manager and show a welcome window
+    // Initialize interrupt handling
+    interrupts::init();
+    
+    // Initialize keyboard handling
+    keyboard::init();
+    
+    // Create window manager
     let mut window_manager = WindowManager::new();
     
     // Create DOS classic theme
@@ -47,13 +60,17 @@ fn kernel_main(_boot_info: &'static BootInfo) -> ! {
     // Show welcome window
     window_manager.show_message(
         "Welcome", 
-        "ScreammOS 0.1.0 - Press F1 for help", 
+        "ScreammOS 0.1.0 - Type 'help' for commands", 
         dos_theme
     );
     
-    // Main loop
+    // Display a command prompt
+    print!(">");
+    
+    // Main loop - wait for interrupts
     loop {
-        // Here will be code for keyboard handling and commands later
+        // Use hlt instruction to save power while waiting for interrupts
+        x86_64::instructions::hlt();
     }
 }
 
