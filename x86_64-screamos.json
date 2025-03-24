@@ -11,5 +11,10 @@
   "linker": "rust-lld",
   "panic-strategy": "abort",
   "disable-redzone": true,
-  "features": "-mmx"
+  "features": "-mmx",
+  "pre-link-args": {
+    "ld.lld": [
+      "-Tlink.ld"
+    ]
+  }
 } 

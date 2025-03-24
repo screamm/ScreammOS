@@ -7,10 +7,11 @@ use x86_64::{
 };
 use linked_list_allocator::LockedHeap;
 use bootloader::bootinfo::{MemoryMap, MemoryRegionType};
+use crate::println;
 
 // Define the kernel heap size
 pub const HEAP_START: usize = 0x_4444_4444_0000;
-pub const HEAP_SIZE: usize = 100 * 1024; // 100 KiB
+pub const HEAP_SIZE: usize = 500 * 1024; // 500 KiB (increased for filesystem)
 
 // Create a global heap allocator
 #[global_allocator]
@@ -51,6 +52,9 @@ unsafe fn active_level_4_table(physical_memory_offset: VirtAddr)
 pub struct BootInfoFrameAllocator {
     memory_map: &'static MemoryMap,
     next: usize,
+    // Håll reda på de senaste ramarna som har tilldelats för att undvika dubbla tilldelningar
+    allocated_frames: [u64; 64], // Vi håller bara de senaste 64 ramarna för enkelhetens skull
+    allocated_count: usize,
 }
 
 impl BootInfoFrameAllocator {
@@ -63,6 +67,8 @@ impl BootInfoFrameAllocator {
         BootInfoFrameAllocator {
             memory_map,
             next: 0,
+            allocated_frames: [0; 64],
+            allocated_count: 0,
         }
     }
     
@@ -78,13 +84,54 @@ impl BootInfoFrameAllocator {
         // Create `PhysFrame` types from the start addresses
         frame_addresses.map(|addr| PhysFrame::containing_address(PhysAddr::new(addr)))
     }
+
+    // Kolla om en ram redan är allokerad
+    fn is_frame_allocated(&self, frame: PhysFrame) -> bool {
+        let frame_addr = frame.start_address().as_u64();
+        for i in 0..self.allocated_count {
+            if self.allocated_frames[i] == frame_addr {
+                return true;
+            }
+        }
+        false
+    }
+
+    // Lägg till en ram till listan över allokerade ramar
+    fn mark_frame_allocated(&mut self, frame: PhysFrame) {
+        let frame_addr = frame.start_address().as_u64();
+        if self.allocated_count < self.allocated_frames.len() {
+            self.allocated_frames[self.allocated_count] = frame_addr;
+            self.allocated_count += 1;
+        } else {
+            // Om listan är full, starta om från början (cirkulär buffer)
+            for i in 0..(self.allocated_frames.len() - 1) {
+                self.allocated_frames[i] = self.allocated_frames[i + 1];
+            }
+            self.allocated_frames[self.allocated_frames.len() - 1] = frame_addr;
+        }
+    }
 }
 
 unsafe impl FrameAllocator<Size4KiB> for BootInfoFrameAllocator {
     fn allocate_frame(&mut self) -> Option<PhysFrame> {
-        let frame = self.usable_frames().nth(self.next);
-        self.next += 1;
-        frame
+        let mut frame_iter = self.usable_frames().skip(self.next);
+        
+        // Hitta nästa lediga ram som inte är allokerad
+        let frame = loop {
+            let frame = frame_iter.next()?;
+            
+            // Öka next-räknaren så vi inte hamnar i en oändlig loop
+            self.next += 1;
+            
+            // Kolla om ramen redan är allokerad
+            if !self.is_frame_allocated(frame) {
+                // Markera ramen som allokerad och returnera den
+                self.mark_frame_allocated(frame);
+                break frame;
+            }
+        };
+        
+        Some(frame)
     }
 }
 
@@ -104,11 +151,26 @@ pub fn init_heap(
 
     // Create the page tables and allocate frames for the heap
     for page in page_range {
-        let frame = frame_allocator
-            .allocate_frame()
-            .ok_or(MapToError::FrameAllocationFailed)?;
-        let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
-        unsafe { mapper.map_to(page, frame, flags, frame_allocator)?.flush() };
+        // Försök att mappa sidan upp till 3 gånger om det behövs
+        let mut attempts = 0;
+        let max_attempts = 3;
+        
+        loop {
+            match unsafe { try_map_page(page, mapper, frame_allocator) } {
+                Ok(_) => break,  // Lyckades mappa sidan
+                Err(MapToError::FrameAllocationFailed) if attempts < max_attempts => {
+                    // Försök igen med en annan ram
+                    attempts += 1;
+                    continue;
+                }
+                Err(MapToError::PageAlreadyMapped(_)) => {
+                    // Sidan är redan mappad, vi kan hoppa över den
+                    println!("INFO: Page {:?} was already mapped", page);
+                    break;
+                }
+                Err(e) => return Err(e),  // Annat fel, returnera det
+            }
+        }
     }
 
     // Initialize the allocator with the heap area
@@ -116,6 +178,20 @@ pub fn init_heap(
         ALLOCATOR.lock().init(HEAP_START as *mut u8, HEAP_SIZE);
     }
 
+    Ok(())
+}
+
+// Hjälpfunktion för att försöka mappa en sida
+unsafe fn try_map_page(
+    page: Page,
+    mapper: &mut impl Mapper<Size4KiB>,
+    frame_allocator: &mut impl FrameAllocator<Size4KiB>,
+) -> Result<(), MapToError<Size4KiB>> {
+    let frame = frame_allocator
+        .allocate_frame()
+        .ok_or(MapToError::FrameAllocationFailed)?;
+    let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
+    mapper.map_to(page, frame, flags, frame_allocator)?.flush();
     Ok(())
 }
 

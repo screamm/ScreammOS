@@ -1,20 +1,29 @@
 //! User interface module for ScreammOS
 
-pub mod window_manager;
-
+use spin::Mutex;
 use crate::vga_buffer::{Color, WRITER};
+use crate::println;
+use crate::ui::command_line::CommandLine;
+
+pub mod window_manager;
+pub mod file_manager;
+pub mod text_editor;
+pub mod command_line;
+pub mod splash_screen;
+pub mod retro_commands;
+
+pub static UI_STATE: Mutex<CommandLine> = Mutex::new(CommandLine::new());
 
 /// Different UI themes for ScreammOS
-pub enum UITheme {
-    DOSClassic,     // Classic DOS style - blue background, white text
-    AmberTerminal,  // Amber terminal - yellow/brown text on black background
-    GreenCRT,       // Green CRT terminal - green text on black background
-    ModernRetro,    // Modern retro style with 16-color palette
-    Custom(Theme),  // Custom theme
+pub enum UIThemeType {
+    Classic,
+    Dark,
+    Light,
+    Retro,
 }
 
 /// Customizable theme settings
-pub struct Theme {
+pub struct UITheme {
     pub window_bg: Color,
     pub window_fg: Color,
     pub border_color: Color,
@@ -25,7 +34,7 @@ pub struct Theme {
     pub crt_effect: bool,
 }
 
-impl Theme {
+impl UITheme {
     /// Create the classic DOS theme
     pub fn dos_classic() -> Self {
         Self {
@@ -89,59 +98,118 @@ pub trait Component {
 pub enum BorderStyle {
     Single,     // ─ │ ┌ ┐ └ ┘
     Double,     // ═ ║ ╔ ╗ ╚ ╝
-    SingleHeavy // ━ ┃ ┏ ┓ ┗ ┛
+    SingleHeavy, // ━ ┃ ┏ ┓ ┗ ┛
+    None,
 }
 
 /// Draw a DOS-style box
 pub fn draw_box(rect: Rect, style: BorderStyle, title: Option<&str>) {
     let mut writer = WRITER.lock();
     
-    // Characters for different border types
+    // Spara nuvarande position
+    let saved_row = writer.row_position;
+    let saved_col = writer.column_position;
+    
+    // Välj tecken för ramen baserat på stil
     let (top_left, top_right, bottom_left, bottom_right, horizontal, vertical) = match style {
-        BorderStyle::Single => (0xDA, 0xBF, 0xC0, 0xD9, 0xC4, 0xB3),
-        BorderStyle::Double => (0xC9, 0xBB, 0xC8, 0xBC, 0xCD, 0xBA),
+        BorderStyle::Single => (b'\xDA', b'\xBF', b'\xC0', b'\xD9', b'\xC4', b'\xB3'),
+        BorderStyle::Double => (b'\xC9', b'\xBB', b'\xC8', b'\xBC', b'\xCD', b'\xBA'),
         BorderStyle::SingleHeavy => (0xD5, 0xB8, 0xD4, 0xBE, 0xCD, 0xB3),
+        BorderStyle::None => (b' ', b' ', b' ', b' ', b' ', b' '),
     };
     
-    // Draw upper frame
-    writer.set_color(Color::LightGray, Color::Blue);
-    for i in rect.x..rect.x+rect.width {
-        writer.write_byte(if i == rect.x { top_left } else if i == rect.x+rect.width-1 { top_right } else { horizontal });
-    }
+    // Rita övre ramen
+    writer.row_position = rect.y;
+    writer.column_position = rect.x;
+    writer.write_byte(top_left);
     
-    // Draw title if present
-    if let Some(title) = title {
-        // Position for title
-        let title_pos = rect.x + 2;
-        writer.column_position = title_pos;
-        writer.row_position = rect.y;
+    // Rita titeln om den finns
+    if let Some(title_text) = title {
+        let title_len = title_text.len();
+        let available_width = rect.width - 2;
         
-        // Draw the title
-        writer.write_byte(b' ');
-        for &byte in title.as_bytes() {
-            writer.write_byte(byte);
+        if title_len <= available_width {
+            let padding_before = (available_width - title_len) / 2;
+            let padding_after = available_width - title_len - padding_before;
+            
+            for _ in 0..padding_before {
+                writer.write_byte(horizontal);
+            }
+            
+            writer.write_string(title_text);
+            
+            for _ in 0..padding_after {
+                writer.write_byte(horizontal);
+            }
+        } else {
+            for _ in 0..(rect.width-2) {
+                writer.write_byte(horizontal);
+            }
         }
-        writer.write_byte(b' ');
+    } else {
+        for _ in 0..(rect.width-2) {
+            writer.write_byte(horizontal);
+        }
     }
     
-    // Draw side frames and filling
-    for y in rect.y+1..rect.y+rect.height-1 {
+    writer.write_byte(top_right);
+    
+    // Rita sidoramarna
+    for y in 1..(rect.height-1) {
+        writer.row_position = rect.y + y;
         writer.column_position = rect.x;
-        writer.row_position = y;
         writer.write_byte(vertical);
         
-        // Fill with spaces
-        for _ in rect.x+1..rect.x+rect.width-1 {
+        writer.column_position = rect.x + rect.width - 1;
+        writer.write_byte(vertical);
+    }
+    
+    // Rita nedre ramen
+    writer.row_position = rect.y + rect.height - 1;
+    writer.column_position = rect.x;
+    writer.write_byte(bottom_left);
+    
+    for _ in 0..(rect.width-2) {
+        writer.write_byte(horizontal);
+    }
+    
+    writer.write_byte(bottom_right);
+    
+    // Återställ skrivarpositionen
+    writer.row_position = saved_row;
+    writer.column_position = saved_col;
+}
+
+/// Rensa insidan av en rektangel
+pub fn clear_rect(rect: Rect) {
+    let mut writer = WRITER.lock();
+    
+    // Spara nuvarande position
+    let saved_row = writer.row_position;
+    let saved_col = writer.column_position;
+    
+    // Rensa insidan av rektangeln
+    for y in 1..(rect.height-1) {
+        writer.row_position = rect.y + y;
+        writer.column_position = rect.x + 1;
+        
+        for _ in 0..(rect.width-2) {
             writer.write_byte(b' ');
         }
-        
-        writer.write_byte(vertical);
     }
     
-    // Draw lower frame
-    writer.column_position = rect.x;
-    writer.row_position = rect.y + rect.height - 1;
-    for i in rect.x..rect.x+rect.width {
-        writer.write_byte(if i == rect.x { bottom_left } else if i == rect.x+rect.width-1 { bottom_right } else { horizontal });
-    }
+    // Återställ skrivarpositionen
+    writer.row_position = saved_row;
+    writer.column_position = saved_col;
+}
+
+/// Initialisera UI-systemet
+pub fn init() {
+    println!("UI: Initialisering av användargränssnittet");
+    
+    // Registrera nödvändiga komponenter
+    window_manager::init();
+    
+    println!("UI: Användargränssnitt initierat");
+    println!("UI: Använd F1 för filhanteraren");
 } 
